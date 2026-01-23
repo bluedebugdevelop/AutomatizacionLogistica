@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: sales-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - sales-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sales-api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./backend/uploads:/app/uploads
+    # LEER ARCHIVO .ENV AUTOMÁTICAMENTE
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+      - GEMINI_API_KEY=${GEMINI_API_KEY} # <--- AHORA LA API TAMBIÉN LA TIENE
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - sales-network
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sales-worker
+    command: celery -A worker.celery_app worker --loglevel=info --concurrency=2
+    volumes:
+      - ./backend:/app
+      - ./backend/uploads:/app/uploads
+    # LEER ARCHIVO .ENV AUTOMÁTICAMENTE
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - sales-network
+    restart: unless-stopped
+
+networks:
+  sales-network:
+    driver: bridge
