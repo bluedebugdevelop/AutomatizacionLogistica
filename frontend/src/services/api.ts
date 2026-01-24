@@ -44,6 +44,7 @@ export interface UploadProductResponse {
     savings: number;
   };
   photos_uploaded: number;
+  optimized_description?: string;
 }
 
 export const uploadProduct = async (data: UploadProductData): Promise<UploadProductResponse> => {

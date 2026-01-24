@@ -27,7 +27,12 @@ interface ProductFormProps {
     image_url?: string;
     url?: string;
   };
-  onSuccess: () => void;
+  onSuccess: (publishData: {
+    title: string;
+    description: string;
+    price: number;
+    photos: Asset[];
+  }) => void;
   onBack: () => void;
 }
 
@@ -84,11 +89,13 @@ export default function ProductFormScreen({ amazonData, onSuccess, onBack }: Pro
         photos: photos,
       });
 
-      Alert.alert(
-        '¡Éxito!',
-        `Producto preparado correctamente\n\nPrecio: ${wallapopPrice.toFixed(2)}€\nFotos: ${photos.length}`,
-        [{ text: 'Aceptar', onPress: onSuccess }]
-      );
+      // Navegar a la pantalla de publicación con los datos
+      onSuccess({
+        title: amazonData.title,
+        description: result.optimized_description || amazonData.description,
+        price: wallapopPrice,
+        photos: photos,
+      });
     } catch (error: any) {
       Alert.alert(
         'Error',

@@ -22,9 +22,18 @@ import { searchAmazon, AmazonProduct } from './src/services/amazon';
 import { searchAmazonByImage } from './src/services/imageSearch';
 import API_CONFIG from './src/constants/api';
 import ProductFormScreen from './src/screens/ProductFormScreen';
+import PublishScreen from './src/screens/PublishScreen';
 
-type Screen = 'search' | 'form';
+type Screen = 'search' | 'form' | 'publish';
 type SearchMode = 'text' | 'image';
+
+// Datos para la pantalla de publicación
+interface PublishData {
+  title: string;
+  description: string;
+  price: number;
+  photos: Asset[];
+}
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('search');
@@ -35,6 +44,7 @@ export default function App() {
   const [productResult, setProductResult] = useState<AmazonProduct | null>(null);
   const [productResults, setProductResults] = useState<AmazonProduct[]>([]);
   const [showImageOptions, setShowImageOptions] = useState(false);
+  const [publishData, setPublishData] = useState<PublishData | null>(null);
 
   useEffect(() => {
     checkBackendHealth();
@@ -177,10 +187,22 @@ export default function App() {
     setCurrentScreen('search');
   };
 
-  const handleProductUploaded = () => {
-    // Reset y volver a la búsqueda
+  const handleBackToForm = () => {
+    setCurrentScreen('form');
+  };
+
+  const handleProductUploaded = (data: PublishData) => {
+    // Guardar datos y navegar a pantalla de publicación
+    setPublishData(data);
+    setCurrentScreen('publish');
+  };
+
+  const handleFinishPublish = () => {
+    // Reset completo y volver a la búsqueda
     setProductResult(null);
+    setProductResults([]);
     setSearchQuery('');
+    setPublishData(null);
     setCurrentScreen('search');
   };
 
@@ -205,6 +227,17 @@ export default function App() {
       default: return 'Desconocido';
     }
   };
+
+  // Renderizar pantalla de publicación
+  if (currentScreen === 'publish' && publishData) {
+    return (
+      <PublishScreen
+        productData={publishData}
+        onBack={handleBackToForm}
+        onFinish={handleFinishPublish}
+      />
+    );
+  }
 
   // Renderizar pantalla de formulario si estamos en ese flujo
   if (currentScreen === 'form' && productResult) {

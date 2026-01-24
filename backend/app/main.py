@@ -217,7 +217,7 @@ async def search_amazon_by_image(
 async def upload_product(
     title: str = Form(...),
     amazon_price: float = Form(...),
-    amazon_description: str = Form(...),
+    amazon_description: str = Form(""),
     defects_description: str = Form(""),
     amazon_image_url: Optional[str] = Form(None),
     amazon_url: Optional[str] = Form(None),
@@ -361,7 +361,8 @@ ESTADO REAL DEL PRODUCTO:
                     "savings": round(amazon_price - wallapop_price, 2)
                 },
                 "photos_uploaded": len(saved_photos),
-                "metadata_path": str(metadata_path)
+                "metadata_path": str(metadata_path),
+                "optimized_description": optimized_description
             }
         )
         
