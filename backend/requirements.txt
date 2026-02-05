@@ -18,6 +18,10 @@ google-generativeai>=0.8.0
 # Peticiones HTTP
 httpx>=0.26.0
 
+# MongoDB
+motor==3.3.2
+pymongo==4.6.1
+
 # Utilidades
 python-dotenv==1.0.0
 pydantic==2.5.3

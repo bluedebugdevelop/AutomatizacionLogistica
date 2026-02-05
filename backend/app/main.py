@@ -4,6 +4,7 @@ FastAPI Application - Sales Automation Backend
 import os
 import json
 import uuid
+import hashlib
 from typing import List, Optional
 from pathlib import Path
 from datetime import datetime
@@ -19,13 +20,20 @@ from worker.tasks import process_product_task
 # Importar servicio de Amazon
 from app.services.amazon import AmazonService
 
+# Importar MongoDB
+from app.database import connect_to_mongo, close_mongo_connection, get_database
+from app.models import (
+    UserLogin, UserCreate, UserRole, LoginResponse, UserResponse,
+    ProductResponse, ProductListResponse
+)
+
 # Crear una instancia del servicio de Amazon
 amazon_service = AmazonService()
 
 app = FastAPI(
     title="Sales Automation API",
     description="Backend para automatización de ventas con FastAPI y Celery",
-    version="1.0.0"
+    version="2.0.0"
 )
 
 # Configurar CORS
@@ -42,13 +50,51 @@ UPLOAD_DIR = Path("/app/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
+# ===== EVENTOS DE INICIO/CIERRE =====
+@app.on_event("startup")
+async def startup_event():
+    """Conectar a MongoDB al iniciar la aplicación"""
+    await connect_to_mongo()
+    await create_default_users()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cerrar conexión a MongoDB al cerrar"""
+    await close_mongo_connection()
+
+
+async def create_default_users():
+    """Crear usuarios por defecto: operario y vendedor"""
+    db = get_database()
+    if db is None:
+        return
+    
+    default_users = [
+        {"username": "operario", "password": "operario123", "role": "operario"},
+        {"username": "vendedor", "password": "vendedor123", "role": "vendedor"},
+    ]
+    
+    for user_data in default_users:
+        existing = await db.users.find_one({"username": user_data["username"]})
+        if not existing:
+            hashed_password = hashlib.sha256(user_data["password"].encode()).hexdigest()
+            await db.users.insert_one({
+                "username": user_data["username"],
+                "password": hashed_password,
+                "role": user_data["role"],
+                "created_at": datetime.now()
+            })
+            print(f"✅ Usuario '{user_data['username']}' creado")
+
+
 @app.get("/")
 async def root():
     """Endpoint de salud del servicio"""
     return {
         "service": "Sales Automation API",
         "status": "running",
-        "version": "1.0.0"
+        "version": "2.0.0"
     }
 
 
@@ -56,6 +102,237 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
+
+
+# ===== ENDPOINTS DE AUTENTICACIÓN =====
+@app.post("/auth/login")
+async def login(credentials: UserLogin):
+    """Login de usuario (operario o vendedor)"""
+    db = get_database()
+    if db is None:
+        raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+    
+    hashed_password = hashlib.sha256(credentials.password.encode()).hexdigest()
+    
+    user = await db.users.find_one({
+        "username": credentials.username,
+        "password": hashed_password
+    })
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    
+    return LoginResponse(
+        success=True,
+        message="Login exitoso",
+        user=UserResponse(
+            id=str(user["_id"]),
+            username=user["username"],
+            role=UserRole(user["role"]),
+            created_at=user["created_at"]
+        ),
+        token=f"token_{user['username']}_{datetime.now().timestamp()}"
+    )
+
+
+# ===== ENDPOINTS DE PRODUCTOS =====
+@app.get("/products")
+async def get_products(
+    search: Optional[str] = Query(None, description="Buscar por título"),
+    date_from: Optional[str] = Query(None, description="Fecha desde (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="Fecha hasta (YYYY-MM-DD)"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100)
+):
+    """Obtener lista de productos con filtros"""
+    db = get_database()
+    if db is None:
+        raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+    
+    query = {}
+    
+    if search:
+        query["$or"] = [
+            {"amazon_data.title": {"$regex": search, "$options": "i"}},
+            {"wallapop_listing.title": {"$regex": search, "$options": "i"}}
+        ]
+    
+    if date_from or date_to:
+        query["created_at"] = {}
+        if date_from:
+            try:
+                date_from_dt = datetime.strptime(date_from, "%Y-%m-%d")
+                query["created_at"]["$gte"] = date_from_dt
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                date_to_dt = datetime.strptime(date_to, "%Y-%m-%d")
+                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
+                query["created_at"]["$lte"] = date_to_dt
+            except ValueError:
+                pass
+        if not query["created_at"]:
+            del query["created_at"]
+    
+    total = await db.products.count_documents(query)
+    
+    cursor = db.products.find(query).sort("created_at", -1).skip(skip).limit(limit)
+    products_raw = await cursor.to_list(length=limit)
+    
+    products = []
+    for p in products_raw:
+        # Compatibilidad con documentos antiguos y nuevos
+        photos = p["real_condition"].get("photos", [])
+        photos_count = p["real_condition"].get("photos_count", len(photos))
+        
+        # Construir URLs de fotos (manejar formato objeto o string)
+        photo_urls = []
+        for photo in photos:
+            if isinstance(photo, dict):
+                photo_urls.append(f"/photos/{p['product_id']}/{photo['filename']}")
+            else:
+                photo_urls.append(f"/photos/{p['product_id']}/{photo}")
+        
+        products.append(ProductResponse(
+            id=str(p["_id"]),
+            product_id=p["product_id"],
+            created_at=p["created_at"],
+            title=p["amazon_data"]["title"],
+            amazon_price=p["pricing"]["amazon_price"],
+            wallapop_price=p["pricing"]["wallapop_price"],
+            optimized_description=p["wallapop_listing"]["optimized_description"],
+            defects=p["real_condition"]["defects_description"],
+            photos_count=photos_count,
+            photo_urls=photo_urls,
+            amazon_image_url=p["amazon_data"].get("image_url"),
+            status=p.get("status", "pending")
+        ))
+    
+    return ProductListResponse(
+        success=True,
+        total=total,
+        products=products
+    )
+
+
+@app.get("/products/{product_id}")
+async def get_product(product_id: str):
+    """Obtener detalle de un producto específico"""
+    db = get_database()
+    if db is None:
+        raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+    
+    product = await db.products.find_one({"product_id": product_id})
+    
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    
+    # Construir URLs de las fotos (manejar formato objeto o string)
+    photos = product.get("real_condition", {}).get("photos", [])
+    photo_urls = []
+    for photo in photos:
+        if isinstance(photo, dict):
+            photo_urls.append(f"/photos/{product_id}/{photo['filename']}")
+        else:
+            photo_urls.append(f"/photos/{product_id}/{photo}")
+    
+    return {
+        "success": True,
+        "product": {
+            "id": str(product["_id"]),
+            "product_id": product["product_id"],
+            "created_at": product["created_at"].isoformat(),
+            "amazon_data": product["amazon_data"],
+            "real_condition": {
+                **product["real_condition"],
+                "photo_urls": photo_urls
+            },
+            "wallapop_listing": product["wallapop_listing"],
+            "pricing": product["pricing"],
+            "status": product.get("status", "revisado")
+        }
+    }
+
+
+@app.patch("/products/{product_id}/status")
+async def update_product_status(product_id: str, status: str = Form(...)):
+    """
+    Actualizar el estado de un producto.
+    Estados válidos: revisado, publicado, vendido
+    """
+    valid_statuses = ["revisado", "publicado", "vendido"]
+    if status not in valid_statuses:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Estado inválido. Estados válidos: {', '.join(valid_statuses)}"
+        )
+    
+    db = get_database()
+    if db is None:
+        raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+    
+    result = await db.products.update_one(
+        {"product_id": product_id},
+        {"$set": {"status": status}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    
+    print(f"📝 Producto {product_id} actualizado a estado: {status}")
+    
+    return {"success": True, "message": f"Estado actualizado a '{status}'"}
+
+
+@app.delete("/products/{product_id}")
+async def delete_product(product_id: str):
+    """Eliminar un producto y sus fotos"""
+    db = get_database()
+    if db is None:
+        raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+    
+    # Verificar que existe
+    product = await db.products.find_one({"product_id": product_id})
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    
+    # Eliminar carpeta de fotos
+    import shutil
+    product_dir = UPLOAD_DIR / "items" / product_id
+    if product_dir.exists():
+        shutil.rmtree(product_dir)
+        print(f"🗑️ Carpeta de fotos eliminada: {product_dir}")
+    
+    # Eliminar de MongoDB
+    await db.products.delete_one({"product_id": product_id})
+    print(f"🗑️ Producto {product_id} eliminado de la base de datos")
+    
+    return {"success": True, "message": "Producto eliminado correctamente"}
+
+
+@app.get("/photos/{product_id}/{filename}")
+async def get_photo(product_id: str, filename: str):
+    """Servir foto de un producto"""
+    from fastapi.responses import FileResponse
+    
+    file_path = UPLOAD_DIR / "items" / product_id / filename
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Foto no encontrada")
+    
+    # Determinar el tipo de contenido
+    extension = Path(filename).suffix.lower()
+    media_types = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".webp": "image/webp"
+    }
+    media_type = media_types.get(extension, "image/jpeg")
+    
+    return FileResponse(file_path, media_type=media_type)
 
 
 @app.get("/search-amazon")
@@ -224,19 +501,8 @@ async def upload_product(
     files: List[UploadFile] = File(...)
 ):
     """
-    Endpoint para subir producto con fotos reales y desperfectos
-    
-    Args:
-        title: Título del producto desde Amazon
-        amazon_price: Precio original de Amazon (€)
-        amazon_description: Descripción desde Amazon
-        defects_description: Descripción de desperfectos del usuario
-        amazon_image_url: URL de la imagen de Amazon
-        amazon_url: URL del producto en Amazon
-        files: Fotos reales del producto (máximo 6)
-    
-    Returns:
-        JSON con información del producto guardado y tarea encolada
+    Endpoint para subir producto con fotos reales y desperfectos.
+    Guarda el producto en MongoDB y las fotos en el servidor.
     """
     try:
         # Validar número de archivos
@@ -250,37 +516,33 @@ async def upload_product(
         if amazon_price <= 0:
             raise HTTPException(status_code=400, detail="El precio debe ser mayor a 0")
         
-        # ===== LÓGICA DE CÁLCULO DE PRECIO WALLAPOP =====
-        # Precio < 250€ → 50% del precio Amazon
-        # Precio ≥ 250€ → 60% del precio Amazon
+        # Calcular precio Wallapop
         wallapop_price = amazon_price * 0.5 if amazon_price < 250 else amazon_price * 0.6
-        wallapop_price = round(wallapop_price, 2)  # Redondear a 2 decimales
+        wallapop_price = round(wallapop_price, 2)
         
         print(f"💰 Precio Amazon: {amazon_price}€ → Precio Wallapop: {wallapop_price}€")
         
-        # Generar ID único para este producto
+        # Generar ID único
         product_id = str(uuid.uuid4())
         
-        # Crear carpeta específica: /app/uploads/items/{uuid}/
+        # Crear carpeta para las fotos
         items_dir = UPLOAD_DIR / "items"
         items_dir.mkdir(parents=True, exist_ok=True)
-        
         product_dir = items_dir / product_id
         product_dir.mkdir(parents=True, exist_ok=True)
         
-        # Guardar fotos reales
+        # Guardar fotos
         saved_photos = []
         for idx, file in enumerate(files):
-            # Generar nombre único: photo_1.jpg, photo_2.jpg, etc.
             file_extension = Path(file.filename).suffix or ".jpg"
             file_name = f"photo_{idx + 1}{file_extension}"
             file_path = product_dir / file_name
             
-            # Guardar archivo de forma asíncrona
+            content = await file.read()
             async with aiofiles.open(file_path, 'wb') as f:
-                content = await file.read()
                 await f.write(content)
             
+            # Guardar info completa de la foto
             saved_photos.append({
                 "filename": file_name,
                 "path": str(file_path),
@@ -289,8 +551,7 @@ async def upload_product(
         
         print(f"📸 Guardadas {len(saved_photos)} fotos en {product_dir}")
         
-        # ===== GENERAR DESCRIPCIÓN OPTIMIZADA CON IA =====
-        # Combinar descripción de Amazon + desperfectos del operario
+        # Generar descripción optimizada con IA
         try:
             from app.services.llm import clean_description
             
@@ -306,12 +567,12 @@ ESTADO REAL DEL PRODUCTO:
             print(f"✅ IA: Descripción optimizada generada ({len(optimized_description)} caracteres)")
         except Exception as e:
             print(f"⚠️ Error al generar descripción con IA: {e}")
-            optimized_description = amazon_description  # Fallback a descripción original
+            optimized_description = amazon_description
         
-        # ===== CREAR METADATA.JSON =====
-        metadata = {
+        # Crear documento del producto
+        product_data = {
             "product_id": product_id,
-            "created_at": datetime.now().isoformat(),
+            "created_at": datetime.now(),
             "amazon_data": {
                 "title": title,
                 "price": amazon_price,
@@ -320,11 +581,11 @@ ESTADO REAL DEL PRODUCTO:
                 "url": amazon_url
             },
             "real_condition": {
-                "defects_description": defects_description,
+                "defects_description": defects_description or "Ningún desperfecto",
                 "photos": saved_photos
             },
             "wallapop_listing": {
-                "optimized_description": optimized_description,  # Descripción generada por IA
+                "optimized_description": optimized_description,
                 "title": title,
                 "price": wallapop_price
             },
@@ -333,35 +594,30 @@ ESTADO REAL DEL PRODUCTO:
                 "wallapop_price": wallapop_price,
                 "discount_percentage": round((1 - wallapop_price / amazon_price) * 100, 1)
             },
-            "status": "pending_upload"  # Estados: pending_upload, uploaded, failed
+            "status": "revisado"
         }
         
-        # Guardar metadata.json
-        metadata_path = product_dir / "metadata.json"
-        async with aiofiles.open(metadata_path, 'w', encoding='utf-8') as f:
-            await f.write(json.dumps(metadata, indent=2, ensure_ascii=False))
-        
-        print(f"📄 Metadata guardado en {metadata_path}")
-        
-        # ===== ENCOLAR TAREA DE CELERY =====
-        from worker.tasks import task_prepare_wallapop
-        
-        task = task_prepare_wallapop.delay(product_id)
+        # Guardar en MongoDB
+        db = get_database()
+        if db is not None:
+            result = await db.products.insert_one(product_data)
+            print(f"💾 Producto guardado en MongoDB con ID: {result.inserted_id}")
+        else:
+            print("⚠️ MongoDB no disponible")
+            raise HTTPException(status_code=500, detail="Base de datos no disponible")
         
         return JSONResponse(
             status_code=201,
             content={
                 "success": True,
-                "message": "Producto preparado correctamente",
+                "message": "Producto guardado correctamente",
                 "product_id": product_id,
-                "task_id": task.id,
                 "pricing": {
                     "amazon_price": amazon_price,
                     "wallapop_price": wallapop_price,
                     "savings": round(amazon_price - wallapop_price, 2)
                 },
                 "photos_uploaded": len(saved_photos),
-                "metadata_path": str(metadata_path),
                 "optimized_description": optimized_description
             }
         )

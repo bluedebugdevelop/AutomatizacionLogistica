@@ -27,12 +27,7 @@ interface ProductFormProps {
     image_url?: string;
     url?: string;
   };
-  onSuccess: (publishData: {
-    title: string;
-    description: string;
-    price: number;
-    photos: Asset[];
-  }) => void;
+  onSuccess: () => void;
   onBack: () => void;
 }
 
@@ -89,13 +84,17 @@ export default function ProductFormScreen({ amazonData, onSuccess, onBack }: Pro
         photos: photos,
       });
 
-      // Navegar a la pantalla de publicación con los datos
-      onSuccess({
-        title: amazonData.title,
-        description: result.optimized_description || amazonData.description,
-        price: wallapopPrice,
-        photos: photos,
-      });
+      // Mostrar mensaje de éxito y volver al inicio
+      Alert.alert(
+        'Producto guardado',
+        `El producto se ha guardado correctamente.\n\nPrecio Wallapop: ${wallapopPrice.toFixed(2)}€`,
+        [
+          { 
+            text: 'Aceptar', 
+            onPress: () => onSuccess()
+          }
+        ]
+      );
     } catch (error: any) {
       Alert.alert(
         'Error',
@@ -111,7 +110,7 @@ export default function ProductFormScreen({ amazonData, onSuccess, onBack }: Pro
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Atrás</Text>
+          <Text style={styles.backButtonText}>Atrás</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Detalles del Producto</Text>
       </View>
@@ -128,21 +127,17 @@ export default function ProductFormScreen({ amazonData, onSuccess, onBack }: Pro
           <Text style={styles.productTitle}>{amazonData.title}</Text>
 
           <View style={styles.priceRow}>
-            <View style={styles.priceBox}>
-              <Text style={styles.priceLabel}>Precio Amazon</Text>
+            <View style={styles.priceColumn}>
+              <Text style={styles.priceLabel}>Amazon</Text>
               <Text style={styles.priceValue}>{amazonData.price.toFixed(2)}€</Text>
             </View>
-
-            <View style={styles.arrow}>
-              <Text style={styles.arrowText}>→</Text>
-            </View>
-
-            <View style={[styles.priceBox, styles.wallapopBox]}>
-              <Text style={styles.priceLabel}>Precio Wallapop</Text>
+            <View style={styles.priceDivider} />
+            <View style={[styles.priceColumn, styles.wallapopBox]}>
+              <Text style={styles.priceLabel}>Wallapop</Text>
               <Text style={[styles.priceValue, styles.wallapopPrice]}>
                 {wallapopPrice.toFixed(2)}€
               </Text>
-              <Text style={styles.savings}>Ahorras: {savings.toFixed(2)}€</Text>
+              <Text style={styles.savings}>Ahorro: {savings.toFixed(2)}€</Text>
             </View>
           </View>
         </View>
@@ -196,7 +191,7 @@ export default function ProductFormScreen({ amazonData, onSuccess, onBack }: Pro
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F6F7FB',
   },
   header: {
     flexDirection: 'row',
@@ -204,21 +199,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#EEF1F6',
     backgroundColor: '#FFFFFF',
   },
   backButton: {
     marginRight: 16,
   },
   backButtonText: {
-    fontSize: 16,
-    color: '#111827',
-    fontWeight: '500',
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '600',
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: '700',
+    color: '#0F172A',
     letterSpacing: -0.3,
   },
   scrollView: {
@@ -227,29 +222,30 @@ const styles = StyleSheet.create({
   section: {
     padding: 24,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#EEF1F6',
     backgroundColor: '#FFFFFF',
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
     marginBottom: 16,
-    letterSpacing: -0.2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   amazonImage: {
     width: '100%',
-    height: 200,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
-    marginBottom: 15,
+    height: 220,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    marginBottom: 16,
     resizeMode: 'contain',
   },
   productTitle: {
     fontSize: 15,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 15,
+    fontWeight: '600',
+    color: '#0F172A',
+    marginBottom: 16,
     lineHeight: 22,
   },
   priceRow: {
@@ -258,14 +254,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 10,
   },
+  priceColumn: {
+    flex: 1,
+  },
+  priceDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#E2E8F0',
+    marginHorizontal: 16,
+  },
   priceBox: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F8FAFC',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E2E8F0',
   },
   wallapopBox: {
     backgroundColor: '#F0FDF4',
@@ -273,26 +278,26 @@ const styles = StyleSheet.create({
   },
   priceLabel: {
     fontSize: 11,
-    color: '#6B7280',
+    color: '#94A3B8',
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     fontWeight: '600',
   },
   priceValue: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#111827',
+    color: '#0F172A',
     letterSpacing: -0.5,
   },
   wallapopPrice: {
-    color: '#059669',
+    color: '#16A34A',
   },
   savings: {
     fontSize: 11,
-    color: '#059669',
+    color: '#16A34A',
     marginTop: 4,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   arrow: {
     marginHorizontal: 10,
@@ -303,48 +308,48 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontSize: 13,
-    color: '#6B7280',
+    color: '#64748B',
     marginBottom: 10,
     lineHeight: 18,
   },
   textArea: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
     padding: 14,
-    fontSize: 15,
-    color: '#111827',
+    fontSize: 14,
+    color: '#0F172A',
     minHeight: 120,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F8FAFC',
   },
   charCount: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#94A3B8',
     textAlign: 'right',
     marginTop: 6,
   },
   submitButton: {
-    backgroundColor: '#111827',
+    backgroundColor: '#0F172A',
     margin: 24,
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
     elevation: 4,
   },
   submitButtonDisabled: {
-    backgroundColor: '#9CA3AF',
+    backgroundColor: '#94A3B8',
     shadowOpacity: 0,
     elevation: 0,
   },
   submitButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   loadingRow: {
     flexDirection: 'row',

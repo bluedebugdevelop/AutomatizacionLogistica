@@ -115,7 +115,7 @@ export default function PublishScreen({ productData, onBack, onFinish }: Publish
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Atrás</Text>
+          <Text style={styles.backButtonText}>Atrás</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Publicar en Wallapop</Text>
       </View>
@@ -253,7 +253,7 @@ export default function PublishScreen({ productData, onBack, onFinish }: Publish
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F6F7FB',
   },
   header: {
     flexDirection: 'row',
@@ -261,43 +261,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#EEF1F6',
     backgroundColor: '#FFFFFF',
   },
   backButton: {
     marginRight: 16,
   },
   backButtonText: {
-    fontSize: 16,
-    color: '#111827',
-    fontWeight: '500',
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '600',
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: '700',
+    color: '#0F172A',
     letterSpacing: -0.3,
   },
   scrollView: {
     flex: 1,
   },
   instructionsBox: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: '#F8FAFC',
     margin: 16,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#C7D2FE',
+    borderColor: '#E2E8F0',
   },
   instructionsTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#4338CA',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
     marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   instructionsText: {
     fontSize: 14,
-    color: '#4338CA',
+    color: '#475569',
     lineHeight: 22,
   },
   section: {
@@ -305,9 +307,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 12,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#EEF1F6',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -316,73 +318,73 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   copyButton: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 14,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  copiedButton: {
-    backgroundColor: '#D1FAE5',
-    borderColor: '#6EE7B7',
-  },
-  copyButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  copyableBox: {
-    backgroundColor: '#F9FAFB',
-    padding: 14,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E2E8F0',
+  },
+  copiedButton: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+  },
+  copyButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  copyableBox: {
+    backgroundColor: '#F8FAFC',
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     borderStyle: 'dashed',
   },
   titleText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#111827',
+    color: '#0F172A',
     lineHeight: 24,
   },
   priceBox: {
     backgroundColor: '#F0FDF4',
     padding: 20,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#BBF7D0',
   },
   priceText: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: '700',
-    color: '#059669',
-    letterSpacing: -1,
+    color: '#16A34A',
+    letterSpacing: -0.5,
   },
   descriptionText: {
-    fontSize: 15,
-    color: '#374151',
+    fontSize: 14,
+    color: '#475569',
     lineHeight: 24,
   },
   savePhotosButton: {
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#0F172A',
     paddingHorizontal: 14,
     paddingVertical: 6,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   savePhotosButtonDisabled: {
-    backgroundColor: '#9CA3AF',
+    backgroundColor: '#94A3B8',
   },
   savePhotosButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
   },
@@ -394,28 +396,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   photo: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    backgroundColor: '#E5E7EB',
+    width: 104,
+    height: 104,
+    borderRadius: 10,
+    backgroundColor: '#E2E8F0',
   },
   photoStatus: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F1F5F9',
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 6,
     marginTop: 6,
   },
   photoSaved: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: '#DCFCE7',
   },
   photoStatusText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#374151',
+    color: '#0F172A',
   },
   wallapopButton: {
-    backgroundColor: '#13C1AC',
+    backgroundColor: '#0F172A',
     marginHorizontal: 16,
     marginTop: 12,
     padding: 16,
@@ -424,11 +426,11 @@ const styles = StyleSheet.create({
   },
   wallapopButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
   finishButton: {
-    backgroundColor: '#111827',
+    backgroundColor: '#2563EB',
     marginHorizontal: 16,
     marginTop: 12,
     padding: 16,
@@ -437,7 +439,7 @@ const styles = StyleSheet.create({
   },
   finishButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
   bottomPadding: {

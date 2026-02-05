@@ -15,28 +15,27 @@ import {
   Image,
   Linking,
   StatusBar,
+  Modal,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchCamera, launchImageLibrary, Asset } from 'react-native-image-picker';
 import { checkHealth } from './src/services/api';
 import { searchAmazon, AmazonProduct } from './src/services/amazon';
 import { searchAmazonByImage } from './src/services/imageSearch';
 import API_CONFIG from './src/constants/api';
 import ProductFormScreen from './src/screens/ProductFormScreen';
-import PublishScreen from './src/screens/PublishScreen';
+import LoginScreen, { UserRole } from './src/screens/LoginScreen';
+import VendedorScreen from './src/screens/VendedorScreen';
 
-type Screen = 'search' | 'form' | 'publish';
+type Screen = 'login' | 'search' | 'form';
 type SearchMode = 'text' | 'image';
 
-// Datos para la pantalla de publicación
-interface PublishData {
-  title: string;
-  description: string;
-  price: number;
-  photos: Asset[];
-}
-
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('search');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('login');
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [username, setUsername] = useState<string>('');
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
+  const [menuVisible, setMenuVisible] = useState(false);
   const [searchMode, setSearchMode] = useState<SearchMode>('text');
   const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,10 +43,31 @@ export default function App() {
   const [productResult, setProductResult] = useState<AmazonProduct | null>(null);
   const [productResults, setProductResults] = useState<AmazonProduct[]>([]);
   const [showImageOptions, setShowImageOptions] = useState(false);
-  const [publishData, setPublishData] = useState<PublishData | null>(null);
 
   useEffect(() => {
     checkBackendHealth();
+  }, []);
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('userSession');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.role && parsed?.username) {
+            setUserRole(parsed.role as UserRole);
+            setUsername(parsed.username as string);
+            setCurrentScreen('search');
+          }
+        }
+      } catch (error) {
+        console.error('Error restoring session:', error);
+      } finally {
+        setIsRestoringSession(false);
+      }
+    };
+
+    restoreSession();
   }, []);
 
   const checkBackendHealth = async () => {
@@ -75,18 +95,18 @@ export default function App() {
     setProductResults([]);
 
     try {
-      console.log('🔍 Buscando:', searchQuery);
+      console.log('Buscando:', searchQuery);
       const response = await searchAmazon(searchQuery.trim());
       
-      console.log('✅ Resultado:', response.product.title);
+      console.log('Resultado:', response.product.title);
       setProductResult(response.product);
     } catch (error: any) {
-      console.error('❌ Error:', error);
+      console.error('Error:', error);
       
       const errorMessage = error.response?.data?.detail || error.message || 'Error desconocido';
       
       Alert.alert(
-        '❌ Error en la Búsqueda',
+        'Error en la búsqueda',
         `No se pudo buscar el producto.\n\n${errorMessage}`,
         [
           { text: 'Reintentar', onPress: handleSearch },
@@ -103,7 +123,7 @@ export default function App() {
   };
 
   const captureImage = (source: 'camera' | 'gallery') => {
-    console.log('🔷 captureImage llamado con:', source);
+    console.log('captureImage llamado con:', source);
     setShowImageOptions(false);
     
     const imagePickerOptions = {
@@ -116,7 +136,7 @@ export default function App() {
     };
 
     const callback = async (response: any) => {
-      console.log('📷 Callback recibido:', { didCancel: response.didCancel, errorCode: response.errorCode, assetsLength: response.assets?.length });
+      console.log('Callback recibido:', { didCancel: response.didCancel, errorCode: response.errorCode, assetsLength: response.assets?.length });
       
       if (response.didCancel) {
         console.log('Usuario canceló la selección');
@@ -131,28 +151,28 @@ export default function App() {
       
       if (response.assets && response.assets.length > 0) {
         const photo = response.assets[0];
-        console.log('📸 Foto capturada:', photo.uri);
+        console.log('Foto capturada:', photo.uri);
         
         setIsSearching(true);
         setProductResult(null);
         setProductResults([]);
 
         try {
-          console.log('📸 Buscando por imagen...');
+          console.log('Buscando por imagen...');
           const result = await searchAmazonByImage(photo);
           
-          console.log('✅ Productos encontrados:', result.products?.length || 0);
+          console.log('Productos encontrados:', result.products?.length || 0);
           setProductResults(result.products || []);
           
           Alert.alert(
-            '✅ Producto Identificado',
+            'Producto identificado',
             `Se identificó: ${result.identified_query}\n\nSe encontraron ${result.products?.length || 0} opciones`
           );
         } catch (error: any) {
-          console.error('❌ Error:', error);
+          console.error('Error:', error);
           
           Alert.alert(
-            '❌ Error en Búsqueda por Imagen',
+            'Error en búsqueda por imagen',
             error.message || 'No se pudo identificar el producto',
             [
               { text: 'Reintentar', onPress: handleSearchByImage },
@@ -165,7 +185,7 @@ export default function App() {
       }
     };
 
-    console.log('🚀 Lanzando picker:', source);
+    console.log('Lanzando picker:', source);
     try {
       if (source === 'camera') {
         launchCamera(imagePickerOptions, callback);
@@ -173,7 +193,7 @@ export default function App() {
         launchImageLibrary(imagePickerOptions, callback);
       }
     } catch (error) {
-      console.error('❌ Error al lanzar picker:', error);
+      console.error('Error al lanzar picker:', error);
       Alert.alert('Error', 'No se pudo abrir el selector de imágenes');
     }
   };
@@ -187,23 +207,29 @@ export default function App() {
     setCurrentScreen('search');
   };
 
-  const handleBackToForm = () => {
-    setCurrentScreen('form');
-  };
-
-  const handleProductUploaded = (data: PublishData) => {
-    // Guardar datos y navegar a pantalla de publicación
-    setPublishData(data);
-    setCurrentScreen('publish');
-  };
-
-  const handleFinishPublish = () => {
-    // Reset completo y volver a la búsqueda
+  const handleProductSaved = () => {
+    // Reset y volver a la búsqueda
     setProductResult(null);
     setProductResults([]);
     setSearchQuery('');
-    setPublishData(null);
     setCurrentScreen('search');
+  };
+
+  const handleLogin = (role: UserRole, user: string) => {
+    setUserRole(role);
+    setUsername(user);
+    setCurrentScreen('search');
+    AsyncStorage.setItem('userSession', JSON.stringify({ role, username: user })).catch(() => undefined);
+  };
+
+  const handleLogout = () => {
+    setUserRole(null);
+    setUsername('');
+    setProductResult(null);
+    setProductResults([]);
+    setSearchQuery('');
+    setCurrentScreen('login');
+    AsyncStorage.removeItem('userSession').catch(() => undefined);
   };
 
   const handleOpenUrl = (url: string) => {
@@ -228,18 +254,26 @@ export default function App() {
     }
   };
 
-  // Renderizar pantalla de publicación
-  if (currentScreen === 'publish' && publishData) {
+  if (isRestoringSession) {
     return (
-      <PublishScreen
-        productData={publishData}
-        onBack={handleBackToForm}
-        onFinish={handleFinishPublish}
-      />
+      <View style={styles.sessionLoadingContainer}>
+        <ActivityIndicator size="large" color="#0F172A" />
+        <Text style={styles.sessionLoadingText}>Cargando sesión...</Text>
+      </View>
     );
   }
 
-  // Renderizar pantalla de formulario si estamos en ese flujo
+  // Renderizar pantalla de login
+  if (currentScreen === 'login') {
+    return <LoginScreen onLoginSuccess={handleLogin} />;
+  }
+
+  // Renderizar pantalla de vendedor
+  if (userRole === 'vendedor') {
+    return <VendedorScreen onLogout={handleLogout} username={username} />;
+  }
+
+  // Renderizar pantalla de formulario si estamos en ese flujo (operario)
   if (currentScreen === 'form' && productResult) {
     return (
       <ProductFormScreen
@@ -247,24 +281,31 @@ export default function App() {
           title: productResult.title,
           price: productResult.price || 0,
           description: productResult.features?.join('\n') || productResult.description || '',
-          image_url: productResult.image || '', // Corregido: usa 'image' y provee un fallback
+          image_url: productResult.image || '',
           url: productResult.url,
         }}
-        onSuccess={handleProductUploaded}
+        onSuccess={handleProductSaved}
         onBack={handleBackToSearch}
       />
     );
   }
 
-  // Pantalla de búsqueda principal
+  // Pantalla de búsqueda principal (operario)
   return (
     <View style={styles.wrapper}>
       <StatusBar barStyle="dark-content" backgroundColor="#F5F7FA" />
       <ScrollView style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Sales Automation</Text>
-          <Text style={styles.subtitle}>Automatización de ventas en marketplace</Text>
+          <View style={styles.headerTop}>
+            <TouchableOpacity style={styles.menuButton} onPress={() => setMenuVisible(true)}>
+              <Text style={styles.menuButtonText}>☰</Text>
+            </TouchableOpacity>
+            <View style={styles.headerText}>
+              <Text style={styles.title}>Sales Automation</Text>
+              <Text style={styles.subtitle}>Bienvenido, {username}</Text>
+            </View>
+          </View>
         </View>
 
         {/* Amazon Search Section */}
@@ -500,11 +541,57 @@ export default function App() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <Modal
+        visible={menuVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <View style={styles.menuOverlay}>
+          <View style={styles.menuPanel}>
+            <Text style={styles.menuTitle}>Menú</Text>
+            <Text style={styles.menuSubtitle}>{username}</Text>
+            <TouchableOpacity
+              style={styles.menuPrimaryButton}
+              onPress={() => {
+                setMenuVisible(false);
+                handleLogout();
+              }}
+            >
+              <Text style={styles.menuPrimaryText}>Cerrar sesión</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuSecondaryButton}
+              onPress={() => setMenuVisible(false)}
+            >
+              <Text style={styles.menuSecondaryText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={styles.menuBackdrop}
+            activeOpacity={1}
+            onPress={() => setMenuVisible(false)}
+          />
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  sessionLoadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F6F7FB',
+  },
+  sessionLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '600',
+  },
   wrapper: {
     flex: 1,
     backgroundColor: '#F3F4F6',
@@ -517,6 +604,14 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 40,
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerText: {
+    marginLeft: 12,
+    flex: 1,
+  },
   title: {
     fontSize: 32,
     fontWeight: '700',
@@ -528,6 +623,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6B7280',
     fontWeight: '400',
+  },
+  menuButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuButtonText: {
+    color: '#0F172A',
+    fontSize: 18,
+    fontWeight: '600',
   },
   searchSection: {
     backgroundColor: '#FFFFFF',
@@ -757,5 +867,59 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 0.5,
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.4)',
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+  },
+  menuBackdrop: {
+    flex: 1,
+  },
+  menuPanel: {
+    width: '72%',
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EEF1F6',
+  },
+  menuTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  menuSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 20,
+  },
+  menuPrimaryButton: {
+    backgroundColor: '#0F172A',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  menuPrimaryText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  menuSecondaryButton: {
+    backgroundColor: '#F8FAFC',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  menuSecondaryText: {
+    color: '#0F172A',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
