@@ -6,9 +6,13 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from typing import Optional
 
 # MongoDB connection settings
+# Primero intenta MONGODB_URL (Render), luego MONGO_PUBLIC_URL (Railway), luego default local
 MONGO_URL = os.getenv(
-    "MONGO_PUBLIC_URL", 
-    "mongodb://mongo:UCYBFFUBybfLictgSQjRwJJwoLLDAAqz@nozomi.proxy.rlwy.net:44040"
+    "MONGODB_URL",
+    os.getenv(
+        "MONGO_PUBLIC_URL", 
+        "mongodb://localhost:27017"
+    )
 )
 DATABASE_NAME = "sales_automation"
 

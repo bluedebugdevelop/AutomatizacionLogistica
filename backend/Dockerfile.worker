@@ -18,7 +18,8 @@ RUN mkdir -p /app/uploads && chmod 777 /app/uploads
 
 COPY . .
 
-EXPOSE 8000
+# Variable de entorno para controlar concurrencia
+ENV CELERY_CONCURRENCY=2
 
-# Comando para iniciar la API en producción
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Comando para iniciar el worker de Celery
+CMD celery -A worker.celery_app worker --loglevel=info --concurrency=${CELERY_CONCURRENCY}

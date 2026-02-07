@@ -1,0 +1,96 @@
+services:
+  # =====================================================
+  # REDIS - Managed Service (Cola de tareas para Celery)
+  # =====================================================
+  - type: redis
+    name: sales-redis
+    region: frankfurt
+    plan: free  # free: 25MB | starter: $7/mes (1GB)
+    maxmemoryPolicy: noeviction
+    ipAllowList: []  # Vacío = accesible solo desde otros servicios de Render
+
+  # =====================================================
+  # API - Web Service (FastAPI + Uvicorn)
+  # =====================================================
+  - type: web
+    name: sales-api
+    runtime: docker
+    region: frankfurt
+    plan: free  # free: 0.5GB RAM, duerme tras 15min | starter: $7/mes, 24/7
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    
+    # Variables de entorno
+    envVars:
+      # Redis (auto-conectado desde el servicio managed)
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: sales-redis
+          property: connectionString
+      
+      # Google Gemini AI (configurar manualmente en dashboard)
+      - key: GEMINI_API_KEY
+        sync: false
+      
+      # MongoDB Atlas (configurar manualmente connection string)
+      - key: MONGODB_URL
+        sync: false
+      
+      # Configuración general
+      - key: ENVIRONMENT
+        value: production
+      
+      - key: PORT
+        value: 8000
+    
+    # Health check para verificar que la API responde
+    healthCheckPath: /
+    
+    # Disco persistente para uploads de fotos
+    disk:
+      name: sales-uploads
+      mountPath: /app/uploads
+      sizeGB: 1  # 1GB gratis, adicionales: $0.25/GB/mes
+
+  # =====================================================
+  # WORKER - Background Worker (Celery)
+  # =====================================================
+  - type: worker
+    name: sales-worker
+    runtime: docker
+    region: frankfurt
+    plan: free  # free: comparte las 750 horas/mes | starter: $7/mes, 24/7
+    dockerfilePath: ./backend/Dockerfile.worker
+    dockerContext: ./backend
+    
+    # Variables de entorno (iguales que la API)
+    envVars:
+      # Redis (auto-conectado)
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: sales-redis
+          property: connectionString
+      
+      # Google Gemini AI (configurar manualmente, mismo que API)
+      - key: GEMINI_API_KEY
+        sync: false
+      
+      # MongoDB Atlas (configurar manualmente, mismo que API)
+      - key: MONGODB_URL
+        sync: false
+      
+      # Configuración general
+      - key: ENVIRONMENT
+        value: production
+      
+      # Limitar concurrencia en plan free (poca RAM)
+      - key: CELERY_CONCURRENCY
+        value: 1
+    
+    # Disco persistente para guardar fotos procesadas
+    disk:
+      name: sales-worker-uploads
+      mountPath: /app/uploads
+      sizeGB: 1

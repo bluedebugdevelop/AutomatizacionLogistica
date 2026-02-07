@@ -1,0 +1,38 @@
+# Ignorar archivos innecesarios en el deploy de Render
+
+# Frontend
+frontend/
+
+# Node modules
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Docs
+*.md
+!README.md
+
+# Tests
+**/tests/
+**/__tests__/
+*.test.*
+*.spec.*
