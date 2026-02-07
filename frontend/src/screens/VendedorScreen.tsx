@@ -29,6 +29,7 @@ interface Product {
   id: string;
   product_id: string;
   created_at: string;
+  published_at?: string | null;
   title: string;
   amazon_price: number;
   wallapop_price: number;
@@ -52,6 +53,7 @@ export default function VendedorScreen({ onLogout, username }: VendedorScreenPro
   const [searchText, setSearchText] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [totalProducts, setTotalProducts] = useState(0);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -78,6 +80,9 @@ export default function VendedorScreen({ onLogout, username }: VendedorScreenPro
       if (dateTo) {
         url += `&date_to=${dateTo}`;
       }
+      if (statusFilter !== 'all') {
+        url += `&status=${statusFilter}`;
+      }
 
       const response = await fetch(url);
       const data = await response.json();
@@ -95,7 +100,7 @@ export default function VendedorScreen({ onLogout, username }: VendedorScreenPro
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [searchText, dateFrom, dateTo]);
+  }, [searchText, dateFrom, dateTo, statusFilter]);
 
   useEffect(() => {
     fetchProducts();
@@ -109,6 +114,7 @@ export default function VendedorScreen({ onLogout, username }: VendedorScreenPro
     setSearchText('');
     setDateFrom('');
     setDateTo('');
+    setStatusFilter('all');
     setShowFilters(false);
   };
 
@@ -121,6 +127,17 @@ export default function VendedorScreen({ onLogout, username }: VendedorScreenPro
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const formatPublishedDate = (dateString?: string | null) => {
+    if (!dateString) {
+      return 'Sin publicar';
+    }
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) {
+      return 'Sin publicar';
+    }
+    return formatDate(dateString);
   };
 
   const copyToClipboard = (text: string, fieldName: string) => {
@@ -363,7 +380,14 @@ export default function VendedorScreen({ onLogout, username }: VendedorScreenPro
               </View>
               <View style={styles.metaRow}>
                 <Text style={styles.metaText}>{item.photo_urls?.length || 0} fotos</Text>
-                <Text style={styles.metaText}> {formatDate(item.created_at)}</Text>
+                <View style={styles.metaColumn}>
+                  <Text style={styles.metaLabel}>Subido</Text>
+                  <Text style={styles.metaValue}>{formatDate(item.created_at)}</Text>
+                </View>
+                <View style={styles.metaColumn}>
+                  <Text style={styles.metaLabel}>Publicado</Text>
+                  <Text style={styles.metaValue}>{formatPublishedDate(item.published_at)}</Text>
+                </View>
               </View>
             </View>
           </View>
@@ -629,6 +653,32 @@ export default function VendedorScreen({ onLogout, username }: VendedorScreenPro
 
         {showFilters && (
           <View style={styles.filtersContainer}>
+            <View style={styles.statusFiltersRow}>
+              {[
+                { label: 'Todos', value: 'all' },
+                { label: 'Revisado', value: 'revisado' },
+                { label: 'Publicado', value: 'publicado' },
+                { label: 'Vendido', value: 'vendido' },
+              ].map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.statusChip,
+                    statusFilter === option.value && styles.statusChipActive,
+                  ]}
+                  onPress={() => setStatusFilter(option.value)}
+                >
+                  <Text
+                    style={[
+                      styles.statusChipText,
+                      statusFilter === option.value && styles.statusChipTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <View style={styles.dateRow}>
               <View style={styles.dateInput}>
                 <Text style={styles.dateLabel}>Desde:</Text>
@@ -876,6 +926,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
+  statusFiltersRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  statusChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  statusChipActive: {
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
+  },
+  statusChipText: {
+    fontSize: 12,
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+  statusChipTextActive: {
+    color: '#FFFFFF',
+  },
   dateRow: {
     flexDirection: 'row',
     gap: 12,
@@ -1059,10 +1135,25 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     gap: 12,
+    alignItems: 'center',
   },
   metaText: {
     fontSize: 12,
     color: '#9CA3AF',
+  },
+  metaColumn: {
+    flex: 1,
+  },
+  metaLabel: {
+    fontSize: 10,
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  metaValue: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
   },
   loadingContainer: {
     flex: 1,

@@ -139,6 +139,7 @@ async def login(credentials: UserLogin):
 @app.get("/products")
 async def get_products(
     search: Optional[str] = Query(None, description="Buscar por título"),
+    status: Optional[str] = Query(None, description="Estado del producto"),
     date_from: Optional[str] = Query(None, description="Fecha desde (YYYY-MM-DD)"),
     date_to: Optional[str] = Query(None, description="Fecha hasta (YYYY-MM-DD)"),
     skip: int = Query(0, ge=0),
@@ -156,6 +157,15 @@ async def get_products(
             {"amazon_data.title": {"$regex": search, "$options": "i"}},
             {"wallapop_listing.title": {"$regex": search, "$options": "i"}}
         ]
+
+    if status:
+        valid_statuses = ["revisado", "publicado", "vendido", "analisis", "en_analisis", "pending"]
+        if status not in valid_statuses:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Estado inválido. Estados válidos: {', '.join(valid_statuses)}"
+            )
+        query["status"] = status
     
     if date_from or date_to:
         query["created_at"] = {}
@@ -198,6 +208,7 @@ async def get_products(
             id=str(p["_id"]),
             product_id=p["product_id"],
             created_at=p["created_at"],
+            published_at=p.get("published_at"),
             title=p["amazon_data"]["title"],
             amazon_price=p["pricing"]["amazon_price"],
             wallapop_price=p["pricing"]["wallapop_price"],
@@ -243,6 +254,7 @@ async def get_product(product_id: str):
             "id": str(product["_id"]),
             "product_id": product["product_id"],
             "created_at": product["created_at"].isoformat(),
+            "published_at": product.get("published_at").isoformat() if product.get("published_at") else None,
             "amazon_data": product["amazon_data"],
             "real_condition": {
                 **product["real_condition"],
@@ -271,10 +283,17 @@ async def update_product_status(product_id: str, status: str = Form(...)):
     db = get_database()
     if db is None:
         raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
-    
+
+    update_fields = {"status": status}
+
+    if status == "publicado":
+        existing = await db.products.find_one({"product_id": product_id}, {"published_at": 1})
+        if existing and not existing.get("published_at"):
+            update_fields["published_at"] = datetime.now()
+
     result = await db.products.update_one(
         {"product_id": product_id},
-        {"$set": {"status": status}}
+        {"$set": update_fields}
     )
     
     if result.matched_count == 0:
@@ -573,6 +592,7 @@ ESTADO REAL DEL PRODUCTO:
         product_data = {
             "product_id": product_id,
             "created_at": datetime.now(),
+            "published_at": None,
             "amazon_data": {
                 "title": title,
                 "price": amazon_price,

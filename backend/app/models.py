@@ -87,6 +87,7 @@ class ProductResponse(BaseModel):
     id: str
     product_id: str
     created_at: datetime
+    published_at: Optional[datetime] = None
     title: str
     amazon_price: float
     wallapop_price: float
